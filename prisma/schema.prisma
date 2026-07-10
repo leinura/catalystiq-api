@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  plan         String        @default("free")
+  fcmToken     String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  trackRecord  TrackRecord[]
+}
+
+model Instrument {
+  id        String   @id
+  sym       String   @unique
+  name      String
+  cat       String
+  price     Float
+  open      Float
+  bias      String
+  score     Int
+  action    String
+  entryLo   Float?
+  entryHi   Float?
+  sl        Float?
+  tp1       Float?
+  tp2       Float?
+  rr        String
+  reason    String
+  cotLong   Int      @default(50)
+  cotShort  Int      @default(50)
+  updatedAt DateTime @updatedAt
+  signals   Signal[]
+}
+
+model Signal {
+  id           String     @id @default(uuid())
+  instrumentId String
+  instrument   Instrument @relation(fields: [instrumentId], references: [id])
+  layerName    String
+  value        Int
+  source       String
+  updatedAt    DateTime   @updatedAt
+}
+
+model TrackRecord {
+  id          String    @id @default(uuid())
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id])
+  symbol      String
+  direction   String
+  score       Int
+  entry       String
+  sl          Float?
+  tp1         Float?
+  tp2         Float?
+  result      String    @default("open")
+  pips        String?
+  note        String?
+  publishedAt DateTime  @default(now())
+  closedAt    DateTime?
+}
+
+model Catalyst {
+  id          String   @id @default(uuid())
+  title       String
+  impact      String
+  direction   String
+  detail      String
+  affects     String
+  publishedAt DateTime @default(now())
+}

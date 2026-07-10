@@ -32,22 +32,14 @@ export async function fetchForexPrices(): Promise<void> {
 
 export async function fetchMetalPrices(): Promise<void> {
   try {
-    const key = process.env.ALPHA_VANTAGE_KEY;
-    const res = await axios.get(
-      `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAU&to_currency=USD&apikey=${key}`,
-      { timeout: 8000 }
-    );
-    const goldPrice = parseFloat(
-      res.data?.['Realtime Currency Exchange Rate']?.['5. Exchange Rate'] ?? '0'
-    );
+    // Use gold-api.com — completely free, no key needed
+    const [goldRes, silverRes] = await Promise.all([
+      axios.get('https://api.gold-api.com/price/XAU', { timeout: 8000 }),
+      axios.get('https://api.gold-api.com/price/XAG', { timeout: 8000 }),
+    ]);
 
-    const res2 = await axios.get(
-      `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAG&to_currency=USD&apikey=${key}`,
-      { timeout: 8000 }
-    );
-    const silverPrice = parseFloat(
-      res2.data?.['Realtime Currency Exchange Rate']?.['5. Exchange Rate'] ?? '0'
-    );
+    const goldPrice = goldRes.data?.price;
+    const silverPrice = silverRes.data?.price;
 
     const gold = instruments.find(i => i.id === 'XAUUSD');
     const silver = instruments.find(i => i.id === 'XAGUSD');
@@ -55,7 +47,7 @@ export async function fetchMetalPrices(): Promise<void> {
     if (gold && goldPrice > 0) gold.price = parseFloat(goldPrice.toFixed(2));
     if (silver && silverPrice > 0) silver.price = parseFloat(silverPrice.toFixed(2));
 
-    console.log(`[${new Date().toISOString()}] ✅ Metal prices updated — Gold: $${goldPrice.toFixed(2)} Silver: $${silverPrice.toFixed(2)}`);
+    console.log(`[${new Date().toISOString()}] ✅ Metal prices updated — Gold: $${goldPrice} Silver: $${silverPrice}`);
   } catch (err) {
     console.error('❌ Metal fetch failed:', err);
   }

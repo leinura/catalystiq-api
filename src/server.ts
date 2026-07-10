@@ -48,7 +48,7 @@ async function init() {
   console.log('✅ Initial data loaded');
 }
 
-cron.schedule('*/30 * * * * *', async () => {
+cron.schedule('*/60 * * * * *', async () => {
   await fetchAllPrices();
 });
 

@@ -32,17 +32,22 @@ export async function fetchForexPrices(): Promise<void> {
 
 export async function fetchMetalPrices(): Promise<void> {
   try {
+    const key = process.env.ALPHA_VANTAGE_KEY;
     const res = await axios.get(
-      'https://api.coinbase.com/v2/exchange-rates?currency=XAU',
-      { timeout: 5000 }
+      `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAU&to_currency=USD&apikey=${key}`,
+      { timeout: 8000 }
     );
-    const goldPrice = parseFloat(res.data?.data?.rates?.USD ?? '0');
+    const goldPrice = parseFloat(
+      res.data?.['Realtime Currency Exchange Rate']?.['5. Exchange Rate'] ?? '0'
+    );
 
     const res2 = await axios.get(
-      'https://api.coinbase.com/v2/exchange-rates?currency=XAG',
-      { timeout: 5000 }
+      `https://www.alphavantage.co/query?function=CURRENCY_EXCHANGE_RATE&from_currency=XAG&to_currency=USD&apikey=${key}`,
+      { timeout: 8000 }
     );
-    const silverPrice = parseFloat(res2.data?.data?.rates?.USD ?? '0');
+    const silverPrice = parseFloat(
+      res2.data?.['Realtime Currency Exchange Rate']?.['5. Exchange Rate'] ?? '0'
+    );
 
     const gold = instruments.find(i => i.id === 'XAUUSD');
     const silver = instruments.find(i => i.id === 'XAGUSD');

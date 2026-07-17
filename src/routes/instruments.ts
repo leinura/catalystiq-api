@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { instruments } from '../data/instruments';
 import { getLayerBreakdown, getScenarioProbabilities } from '../services/scoringEngine';
+import { newsSummaries } from '../services/newsSummaries';
 
 const router = Router();
 
@@ -10,11 +11,16 @@ router.get('/', (req: Request, res: Response) => {
     ? instruments.filter(i => i.cat === cat)
     : instruments;
 
+  const enriched = result.map(i => ({
+    ...i,
+    description: newsSummaries[i.id] || (i as any).description,
+  }));
+
   res.json({
     success: true,
-    count: result.length,
+    count: enriched.length,
     updatedAt: new Date().toISOString(),
-    data: result,
+    data: enriched,
   });
 });
 
@@ -32,6 +38,7 @@ router.get('/:id', (req: Request, res: Response) => {
     success: true,
     data: {
       ...inst,
+      description: newsSummaries[inst.id] || (inst as any).description,
       layers,
       scenarios,
     },

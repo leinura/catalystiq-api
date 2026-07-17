@@ -18,6 +18,7 @@ import {
 } from './services/priceFetcher';
 import { updateAllScores } from './services/scoringEngine';
 import { runAICatalystAnalysis } from './services/aiCatalysts';
+import { updateNewsSummaries } from './services/newsSummaries';
 import { instruments } from './data/instruments';
 
 dotenv.config();
@@ -50,6 +51,7 @@ async function init() {
   await fetchRetailSentiment();
   await fetchInterestRates();
   await runAICatalystAnalysis();
+  await updateNewsSummaries();
   updateAllScores(instruments);
   console.log('✅ Initial data loaded');
 }
@@ -65,6 +67,7 @@ cron.schedule('*/5 * * * *', async () => {
 
 cron.schedule('0 * * * *', async () => {
   await runAICatalystAnalysis();
+  await updateNewsSummaries();
 });
 
 cron.schedule('0 */6 * * *', async () => {

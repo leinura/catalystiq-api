@@ -18,6 +18,19 @@ export interface NewsArticle {
   publishedAt: string;
 }
 
+// ---- HTML cleanup ---------------------------------------------------------
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, " ")      // remove tags
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#\d+;/g, "")
+    .replace(/\s+/g, " ")          // collapse whitespace
+    .trim();
+}
+
 // ---- Instrument -> keyword mapping ----------------------------------------
 export const INSTRUMENTS: Record<string, string[]> = {
   XAUUSD: ["gold", "xau", "bullion", "precious metals"],
@@ -73,8 +86,8 @@ async function fetchFinnhub(category: string): Promise<NewsArticle[]> {
       timeout: 8000,
     });
     return (data || []).map((a: any): NewsArticle => ({
-      title: a.headline,
-      summary: a.summary || "",
+      title: stripHtml(a.headline || ""),
+      summary: stripHtml(a.summary || "").slice(0, 300),
       url: a.url,
       source: a.source || "Finnhub",
       image: a.image || null,
@@ -93,8 +106,8 @@ async function fetchAllRSS(): Promise<NewsArticle[]> {
     if (r.status !== "fulfilled") continue;
     for (const item of r.value.items || []) {
       items.push({
-        title: item.title || "",
-        summary: (item.contentSnippet || "").slice(0, 300),
+        title: stripHtml(item.title || ""),
+        summary: stripHtml(item.contentSnippet || item.content || "").slice(0, 300),
         url: item.link || "",
         source: r.value.title || "RSS",
         image: null,

@@ -24,10 +24,11 @@ router.get("/instruments", (_req: Request, res: Response) => {
 // GET /api/news/:symbol     -> real-time news for one instrument (e.g. XAUUSD)
 router.get("/:symbol", async (req: Request, res: Response) => {
   try {
-    const news = await getNewsForInstrument(req.params.symbol, Number(req.query.limit) || 20);
+    const symbol = String(req.params.symbol);
+    const news = await getNewsForInstrument(symbol, Number(req.query.limit) || 20);
     res.json({
       success: true,
-      symbol: req.params.symbol.toUpperCase(),
+      symbol: symbol.toUpperCase(),
       count: news.length,
       news,
     });

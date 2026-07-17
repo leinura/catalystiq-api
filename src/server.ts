@@ -9,6 +9,7 @@ import healthRoutes from './routes/health';
 import authRoutes from './routes/auth';
 import notificationRoutes from './routes/notifications';
 import trackRecordRoutes from './routes/trackRecord';
+import newsRouter from "./routes/news";
 
 import {
   fetchAllPrices,
@@ -37,6 +38,7 @@ app.use('/api/catalysts', catalystRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/track-record', trackRecordRoutes);
+app.use("/api/news", newsRouter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'CatalystIQ API is running' });

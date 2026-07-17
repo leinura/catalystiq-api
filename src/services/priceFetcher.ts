@@ -2,6 +2,31 @@ import axios from 'axios';
 import { instruments } from '../data/instruments';
 import { irDifferentials } from './scoringEngine';
 
+// Safe error logging — never dump full axios errors (they contain API keys in headers)
+function logFetchError(label: string, err: any): void {
+  const detail = err?.response?.data?.error || err?.response?.status || err?.message || 'unknown error';
+  console.error(`❌ ${label} fetch failed:`, detail);
+}
+
+// Shared Yahoo Finance price fetcher — free, no API key required
+async function fetchYahooPrice(symbol: string): Promise<number | null> {
+  try {
+    const res = await axios.get(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`,
+      {
+        params: { interval: '1m', range: '1d' },
+        timeout: 8000,
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+      }
+    );
+    const price = res.data?.chart?.result?.[0]?.meta?.regularMarketPrice;
+    return typeof price === 'number' && price > 0 ? price : null;
+  } catch (err) {
+    logFetchError(`Yahoo ${symbol}`, err);
+    return null;
+  }
+}
+
 export async function fetchForexPrices(): Promise<void> {
   try {
     const res = await axios.get(
@@ -26,7 +51,7 @@ export async function fetchForexPrices(): Promise<void> {
     });
     console.log(`[${new Date().toISOString()}] ✅ Forex prices updated`);
   } catch (err) {
-    console.error('❌ Forex fetch failed:', err);
+    logFetchError('Forex', err);
   }
 }
 
@@ -49,7 +74,7 @@ export async function fetchMetalPrices(): Promise<void> {
 
     console.log(`[${new Date().toISOString()}] ✅ Metal prices updated — Gold: $${goldPrice} Silver: $${silverPrice}`);
   } catch (err) {
-    console.error('❌ Metal fetch failed:', err);
+    logFetchError('Metal', err);
   }
 }
 
@@ -65,90 +90,51 @@ export async function fetchCryptoPrices(): Promise<void> {
     }
     console.log(`[${new Date().toISOString()}] ✅ Crypto prices updated`);
   } catch (err) {
-    console.error('❌ Crypto fetch failed:', err);
+    logFetchError('Crypto', err);
   }
 }
 
 export async function fetchOilPrice(): Promise<void> {
-  try {
-    const res = await axios.get(
-      'https://api.api-ninjas.com/v1/commodityprice?name=crude_oil',
-      {
-        timeout: 5000,
-        headers: { 'X-Api-Key': process.env.API_NINJAS_KEY || '' },
-      }
-    );
-    const price = res.data?.price;
-    const oil = instruments.find(i => i.id === 'USOIL');
-    if (oil && price) oil.price = price;
-    console.log(`[${new Date().toISOString()}] ✅ Oil price updated: ${price}`);
-  } catch (err) {
-    console.error('❌ Oil fetch failed:', err);
+  // WTI Crude from Yahoo Finance (CL=F) — replaces API Ninjas, no key needed
+  const price = await fetchYahooPrice('CL=F');
+  const oil = instruments.find(i => i.id === 'USOIL');
+  if (oil && price) {
+    oil.price = parseFloat(price.toFixed(2));
+    console.log(`[${new Date().toISOString()}] ✅ Oil (WTI) price updated: $${oil.price}`);
   }
 }
 
 export async function fetchBrentPrice(): Promise<void> {
-  try {
-    const res = await axios.get(
-      'https://query1.finance.yahoo.com/v8/finance/chart/BZ=F?interval=1m&range=1d',
-      {
-        timeout: 5000,
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-      }
-    );
-    const price = res.data?.chart?.result?.[0]?.meta?.regularMarketPrice;
-    const brent = instruments.find(i => i.id === 'UKOIL');
-    if (brent && price) brent.price = parseFloat(price.toFixed(2));
-    console.log(`[${new Date().toISOString()}] ✅ Brent price updated: $${price}`);
-  } catch (err) {
-    console.error('❌ Brent fetch failed:', err);
+  const price = await fetchYahooPrice('BZ=F');
+  const brent = instruments.find(i => i.id === 'UKOIL');
+  if (brent && price) {
+    brent.price = parseFloat(price.toFixed(2));
+    console.log(`[${new Date().toISOString()}] ✅ Brent price updated: $${brent.price}`);
   }
 }
 
 export async function fetchNASDAQPrice(): Promise<void> {
-  try {
-    const res = await axios.get(
-      'https://query1.finance.yahoo.com/v8/finance/chart/NQ=F?interval=1m&range=1d',
-      {
-        timeout: 5000,
-        headers: { 'User-Agent': 'Mozilla/5.0' },
-      }
-    );
-    const price = res.data?.chart?.result?.[0]?.meta?.regularMarketPrice;
-    const nas = instruments.find(i => i.id === 'NAS100');
-    if (nas && price) nas.price = parseFloat(price.toFixed(2));
-    console.log(`[${new Date().toISOString()}] ✅ NASDAQ price updated: ${price}`);
-  } catch (err) {
-    console.error('❌ NASDAQ fetch failed:', err);
+  const price = await fetchYahooPrice('NQ=F');
+  const nas = instruments.find(i => i.id === 'NAS100');
+  if (nas && price) {
+    nas.price = parseFloat(price.toFixed(2));
+    console.log(`[${new Date().toISOString()}] ✅ NASDAQ price updated: ${nas.price}`);
   }
 }
 
 export async function fetchIndicesPrices(): Promise<void> {
-  try {
-    const [spxRes, nasRes] = await Promise.all([
-      axios.get(
-        'https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?interval=1m&range=1d',
-        { timeout: 8000, headers: { 'User-Agent': 'Mozilla/5.0' } }
-      ),
-      axios.get(
-        'https://query1.finance.yahoo.com/v8/finance/chart/%5EIXIC?interval=1m&range=1d',
-        { timeout: 8000, headers: { 'User-Agent': 'Mozilla/5.0' } }
-      ),
-    ]);
+  const [spxPrice, nasPrice] = await Promise.all([
+    fetchYahooPrice('^GSPC'),
+    fetchYahooPrice('^IXIC'),
+  ]);
 
-    const spxPrice = spxRes.data?.chart?.result?.[0]?.meta?.regularMarketPrice;
-    const nasPrice = nasRes.data?.chart?.result?.[0]?.meta?.regularMarketPrice;
+  const spx = instruments.find(i => i.id === 'SPX500');
+  const nas = instruments.find(i => i.id === 'NAS100');
 
-    const spx = instruments.find(i => i.id === 'SPX500');
-    const nas = instruments.find(i => i.id === 'NAS100');
+  if (spx && spxPrice) spx.price = parseFloat(spxPrice.toFixed(2));
+  if (nas && nasPrice) nas.price = parseFloat(nasPrice.toFixed(2));
 
-    if (spx && spxPrice > 0) spx.price = parseFloat(spxPrice.toFixed(2));
-    if (nas && nasPrice > 0) nas.price = parseFloat(nasPrice.toFixed(2));
-
-    console.log(`[${new Date().toISOString()}] ✅ Indices updated — SPX: ${spxPrice} NAS: ${nasPrice}`);
-  } catch (err) {
-    console.error('❌ Indices fetch failed:', err);
-  }
+  console.log(`[${new Date().toISOString()}] ✅ Indices updated — SPX: ${spxPrice} NAS: ${nasPrice}`);
 }
 
 export async function fetchRetailSentiment(): Promise<void> {
@@ -224,7 +210,7 @@ export async function fetchInterestRates(): Promise<void> {
 
     console.log(`[${new Date().toISOString()}] ✅ Interest rates — US:${usRate}% JP:${jpRate}% GB:${gbRate}% EU:${euRate}% NZ:${nzRate}%`);
   } catch (err) {
-    console.error('❌ Interest rates fetch failed:', err);
+    logFetchError('Interest rates', err);
   }
 }
 

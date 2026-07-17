@@ -13,7 +13,7 @@ router.get('/', (req: Request, res: Response) => {
 
   const enriched = result.map(i => ({
     ...i,
-    description: newsSummaries[i.id] || (i as any).description,
+    reason: newsSummaries[i.id] || i.reason,
   }));
 
   res.json({
@@ -38,7 +38,7 @@ router.get('/:id', (req: Request, res: Response) => {
     success: true,
     data: {
       ...inst,
-      description: newsSummaries[inst.id] || (inst as any).description,
+      reason: newsSummaries[inst.id] || inst.reason,
       layers,
       scenarios,
     },

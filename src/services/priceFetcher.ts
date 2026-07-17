@@ -79,18 +79,11 @@ export async function fetchMetalPrices(): Promise<void> {
 }
 
 export async function fetchCryptoPrices(): Promise<void> {
-  try {
-    const res = await axios.get(
-      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',
-      { timeout: 5000 }
-    );
-    const btc = instruments.find(i => i.id === 'BTCUSD');
-    if (btc && res.data?.bitcoin?.usd) {
-      btc.price = res.data.bitcoin.usd;
-    }
-    console.log(`[${new Date().toISOString()}] ✅ Crypto prices updated`);
-  } catch (err) {
-    logFetchError('Crypto', err);
+  const price = await fetchYahooPrice('BTC-USD');
+  const btc = instruments.find(i => i.id === 'BTCUSD');
+  if (btc && price) {
+    btc.price = parseFloat(price.toFixed(2));
+    console.log(`[${new Date().toISOString()}] ✅ Crypto prices updated — BTC: $${btc.price}`);
   }
 }
 

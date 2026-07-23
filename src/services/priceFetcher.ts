@@ -2,6 +2,14 @@ import axios from 'axios';
 import { instruments } from '../data/instruments';
 import { irDifferentials } from './scoringEngine';
 
+export interface YahooCandle {
+  timestamp: Date;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
 // Safe error logging — never dump full axios errors (they contain API keys in headers)
 function logFetchError(label: string, err: any): void {
   const detail = err?.response?.data?.error || err?.response?.status || err?.message || 'unknown error';
@@ -24,6 +32,69 @@ async function fetchYahooPrice(symbol: string): Promise<number | null> {
   } catch (err) {
     logFetchError(`Yahoo ${symbol}`, err);
     return null;
+  }
+}
+export async function fetchYahooCandles(
+  symbol: string,
+  interval: string = '1m',
+  range: string = '5d'
+): Promise<YahooCandle[]> {
+  try {
+    const res = await axios.get(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`,
+      {
+        params: {
+          interval,
+          range,
+        },
+        timeout: 8000,
+        headers: {
+          'User-Agent': 'Mozilla/5.0',
+        },
+      }
+    );
+
+    const result = res.data?.chart?.result?.[0];
+
+    if (!result) return [];
+
+    const timestamps = result.timestamp ?? [];
+    const quote = result.indicators?.quote?.[0];
+
+    if (!quote) return [];
+
+    const opens = quote.open ?? [];
+    const highs = quote.high ?? [];
+    const lows = quote.low ?? [];
+    const closes = quote.close ?? [];
+    const volumes = quote.volume ?? [];
+
+    const candles: YahooCandle[] = [];
+
+    for (let i = 0; i < timestamps.length; i++) {
+      if (
+        opens[i] == null ||
+        highs[i] == null ||
+        lows[i] == null ||
+        closes[i] == null
+      ) {
+        continue;
+      }
+
+      candles.push({
+        timestamp: new Date(timestamps[i] * 1000),
+        open: opens[i],
+        high: highs[i],
+        low: lows[i],
+        close: closes[i],
+        volume: volumes[i] ?? 0,
+      });
+    }
+
+    return candles;
+  } catch (err) {
+    logFetchError(`Yahoo Candle ${symbol}`, err);
+    return [];
   }
 }
 

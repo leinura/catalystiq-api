@@ -10,6 +10,8 @@ import authRoutes from './routes/auth';
 import notificationRoutes from './routes/notifications';
 import trackRecordRoutes from './routes/trackRecord';
 import newsRouter from "./routes/news";
+import { saveLatestMarketHistory } from './services/marketMemory';
+import { calculateTechnicalIndicators } from "./services/indicatorService";
 
 import {
   fetchAllPrices,
@@ -20,6 +22,7 @@ import { updateAllScores } from './services/scoringEngine';
 import { runAICatalystAnalysis } from './services/aiCatalysts';
 import { updateNewsSummaries } from './services/newsSummaries';
 import { instruments } from './data/instruments';
+import { fetchYahooCandles } from './services/priceFetcher';
 
 dotenv.config();
 
@@ -48,6 +51,12 @@ app.get('/', (req, res) => {
 async function init() {
   console.log('🚀 CatalystIQ API starting...');
   await fetchAllPrices();
+  await calculateTechnicalIndicators();
+  await saveLatestMarketHistory();
+
+  const candles = await fetchYahooCandles('CL=F');
+
+  console.log(candles.slice(-3));
   await fetchRetailSentiment();
   await fetchInterestRates();
   await runAICatalystAnalysis();
@@ -58,6 +67,8 @@ async function init() {
 
 cron.schedule('*/60 * * * * *', async () => {
   await fetchAllPrices();
+  await calculateTechnicalIndicators();
+  await saveLatestMarketHistory();
 });
 
 cron.schedule('*/5 * * * *', async () => {

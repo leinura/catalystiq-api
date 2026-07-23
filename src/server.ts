@@ -12,6 +12,8 @@ import trackRecordRoutes from './routes/trackRecord';
 import newsRouter from "./routes/news";
 import { saveLatestMarketHistory } from './services/marketMemory';
 import { calculateTechnicalIndicators } from "./services/indicatorService";
+import { buildAllTimeframes } from "./services/timeframeManager";
+
 
 import {
   fetchAllPrices,
@@ -49,25 +51,45 @@ app.get('/', (req, res) => {
 });
 
 async function init() {
-  console.log('🚀 CatalystIQ API starting...');
+
+  console.log("🚀 CatalystIQ API starting...");
+
+  // 1. Fetch latest live prices
   await fetchAllPrices();
-  await calculateTechnicalIndicators();
+
+  // 2. Save latest 1-minute candles
   await saveLatestMarketHistory();
 
-  const candles = await fetchYahooCandles('CL=F');
+  // 3. Build higher timeframes
+  await buildAllTimeframes();
 
+  // 4. Calculate indicators
+  await calculateTechnicalIndicators();
+
+  // 5. (Temporary debug)
+  const candles = await fetchYahooCandles("CL=F");
   console.log(candles.slice(-3));
+
+  // 6. Other services
   await fetchRetailSentiment();
+
   await fetchInterestRates();
+
   await runAICatalystAnalysis();
+
   await updateNewsSummaries();
+
+  // 7. Update scores
   updateAllScores(instruments);
-  console.log('✅ Initial data loaded');
+
+  console.log("✅ Initial data loaded");
+
 }
 
 cron.schedule('*/60 * * * * *', async () => {
   await fetchAllPrices();
   await calculateTechnicalIndicators();
+  await buildAllTimeframes();
   await saveLatestMarketHistory();
 });
 

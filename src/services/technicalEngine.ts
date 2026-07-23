@@ -755,3 +755,171 @@ export function BollingerBands(
     };
 
 }
+/*
+==========================================================
+Average Directional Index (ADX)
+Wilder's Method
+==========================================================
+*/
+
+export function ADX(
+    highs: number[],
+    lows: number[],
+    closes: number[],
+    period = 14
+): number {
+
+    if (
+        highs.length < period * 2 ||
+        lows.length < period * 2 ||
+        closes.length < period * 2
+    ) {
+        return 0;
+    }
+
+
+    const tr: number[] = [];
+    const plusDM: number[] = [];
+    const minusDM: number[] = [];
+
+
+    for (let i = 1; i < closes.length; i++) {
+
+
+        const highDiff =
+            highs[i] - highs[i - 1];
+
+        const lowDiff =
+            lows[i - 1] - lows[i];
+
+
+        // True Range
+
+        tr.push(
+            Math.max(
+                highs[i] - lows[i],
+                Math.abs(highs[i] - closes[i - 1]),
+                Math.abs(lows[i] - closes[i - 1])
+            )
+        );
+
+
+        // +DM
+
+        if (
+            highDiff > lowDiff &&
+            highDiff > 0
+        ) {
+
+            plusDM.push(highDiff);
+
+        } else {
+
+            plusDM.push(0);
+
+        }
+
+
+
+        // -DM
+
+        if (
+            lowDiff > highDiff &&
+            lowDiff > 0
+        ) {
+
+            minusDM.push(lowDiff);
+
+        } else {
+
+            minusDM.push(0);
+
+        }
+
+    }
+
+
+
+    let atr =
+        average(tr.slice(0, period));
+
+
+    let plus =
+        average(plusDM.slice(0, period));
+
+
+    let minus =
+        average(minusDM.slice(0, period));
+
+
+    const dxValues:number[] = [];
+
+
+    for (
+        let i = period;
+        i < tr.length;
+        i++
+    ) {
+
+
+        atr =
+            ((atr * (period - 1)) + tr[i])
+            / period;
+
+
+        plus =
+            ((plus * (period - 1)) + plusDM[i])
+            / period;
+
+
+        minus =
+            ((minus * (period - 1)) + minusDM[i])
+            / period;
+
+
+
+        const plusDI =
+            100 * (plus / atr);
+
+
+        const minusDI =
+            100 * (minus / atr);
+
+
+
+        const dx =
+            100 *
+            Math.abs(plusDI - minusDI)
+            /
+            (plusDI + minusDI);
+
+
+        dxValues.push(dx);
+
+    }
+
+
+
+    let adx =
+        average(
+            dxValues.slice(0, period)
+        );
+
+
+    for (
+        let i = period;
+        i < dxValues.length;
+        i++
+    ) {
+
+        adx =
+            ((adx * (period - 1))
+            + dxValues[i])
+            / period;
+
+    }
+
+
+    return Number(adx.toFixed(2));
+
+}

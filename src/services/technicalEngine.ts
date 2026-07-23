@@ -75,8 +75,7 @@ export async function getPriceHistory(
 
     });
 
-    return rows.map(r => ({
-
+    return rows.map((r: any) => ({
         timestamp: r.timestamp,
 
         open: Number(r.open),

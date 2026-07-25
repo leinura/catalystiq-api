@@ -1,138 +1,216 @@
-import prisma from '../lib/prisma';
+import { prisma } from '../lib/prisma';
 import { instruments } from '../data/instruments';
 import { fetchYahooCandles, YahooCandle } from './priceFetcher';
 
-/**
- * Yahoo symbol mapping.
- * Later we can move this into instruments.ts.
- */
-const YAHOO_SYMBOLS: Record<string, string> = {
-  USOIL: 'CL=F',
-  UKOIL: 'BZ=F',
-  XAUUSD: 'GC=F',
-  XAGUSD: 'SI=F',
-  BTCUSD: 'BTC-USD',
-  SPX500: '^GSPC',
-  NAS100: '^IXIC',
 
-  EURUSD: 'EURUSD=X',
-  GBPUSD: 'GBPUSD=X',
-  USDJPY: 'JPY=X',
-  AUDUSD: 'AUDUSD=X',
-  NZDUSD: 'NZDUSD=X',
-  USDCAD: 'CAD=X',
-  EURJPY: 'EURJPY=X',
-  GBPJPY: 'GBPJPY=X',
+const YAHOO_SYMBOLS: Record<string, string> = {
+
+    USOIL: 'CL=F',
+    UKOIL: 'BZ=F',
+
+    XAUUSD: 'GC=F',
+    XAGUSD: 'SI=F',
+
+    BTCUSD: 'BTC-USD',
+
+    SPX500: '^GSPC',
+    NAS100: '^IXIC',
+
+    EURUSD: 'EURUSD=X',
+    GBPUSD: 'GBPUSD=X',
+    USDJPY: 'JPY=X',
+
+    AUDUSD: 'AUDUSD=X',
+    NZDUSD: 'NZDUSD=X',
+
+    USDCAD: 'CAD=X',
+
+    EURJPY: 'EURJPY=X',
+    GBPJPY: 'GBPJPY=X'
+
 };
 
+
+
 export async function saveMarketHistory(
-  instrument: string,
-  timeframe: string,
-  candles: YahooCandle[],
-  source = "Yahoo Finance"
+
+    instrument: string,
+
+    timeframe: string,
+
+    candles: YahooCandle[],
+
+    source = "Yahoo Finance"
+
 ): Promise<void> {
 
-  if (!candles.length) return;
 
-  let inserted = 0;
+    if (!candles.length) return;
 
-  for (const candle of candles) {
 
-    await prisma.priceHistory.upsert({
+    let inserted = 0;
 
-      where: {
 
-        instrument_timeframe_timestamp: {
+    for (const candle of candles) {
 
-          instrument,
 
-          timeframe,
+        await prisma.priceHistory.upsert({
 
-          timestamp: candle.timestamp,
 
-        },
+            where: {
 
-      },
 
-      update: {
+                instrument_timeframe_timestamp: {
 
-        open: candle.open,
 
-        high: candle.high,
+                    instrument,
 
-        low: candle.low,
+                    timeframe,
 
-        close: candle.close,
+                    timestamp: candle.timestamp
 
-        volume: candle.volume,
 
-        source,
+                }
 
-      },
 
-      create: {
+            },
 
-        instrument,
 
-        timeframe,
+            update: {
 
-        timestamp: candle.timestamp,
 
-        open: candle.open,
+                open: candle.open,
 
-        high: candle.high,
+                high: candle.high,
 
-        low: candle.low,
+                low: candle.low,
 
-        close: candle.close,
+                close: candle.close,
 
-        volume: candle.volume,
+                volume: candle.volume,
 
-        source,
+                source
 
-      },
 
-    });
+            },
 
-    inserted++;
 
-  }
+            create: {
 
-  console.log(
 
-    `💾 ${instrument} : ${inserted} candles synchronized`
+                instrument,
 
-  );
+                timeframe,
+
+                timestamp: candle.timestamp,
+
+                open: candle.open,
+
+                high: candle.high,
+
+                low: candle.low,
+
+                close: candle.close,
+
+                volume: candle.volume,
+
+                source
+
+
+            }
+
+
+        });
+
+
+        inserted++;
+
+    }
+
+
+
+    console.log(
+
+        `💾 ${instrument} ${timeframe}: ${inserted} candles synchronized`
+
+    );
+
 
 }
 
+
+
+
 export async function saveLatestMarketHistory(): Promise<void> {
-  console.log('💾 Saving market history...');
 
-  for (const inst of instruments) {
-    const yahooSymbol = YAHOO_SYMBOLS[inst.id];
+  console.log("💾 Saving market history...");
 
-    if (!yahooSymbol) {
-      console.warn(`⚠ No Yahoo symbol for ${inst.id}`);
-      continue;
-    }
+  await Promise.all(
 
-    try {
-      const candles = await fetchYahooCandles(
-        yahooSymbol,
-        '1m',
-        '1d'
-      );
+    instruments.map(async (inst) => {
 
-      await saveMarketHistory(
-        inst.id,
-        '1m',
-        candles
-      );
-    } catch (err) {
-      console.error(`❌ ${inst.id}`, err);
-    }
-  }
+      const yahooSymbol = YAHOO_SYMBOLS[inst.id];
 
-  console.log('✅ Market history saved');
+      if (!yahooSymbol) {
+
+        console.warn(`⚠ No Yahoo symbol for ${inst.id}`);
+
+        return;
+
+      }
+
+      try {
+
+        // --------------------
+        // 1 Minute candles
+        // --------------------
+
+        const candles1m = await fetchYahooCandles(
+          yahooSymbol,
+          "1m",
+          "5d"
+        );
+
+        console.log(
+          `📈 Yahoo ${yahooSymbol} 1m: ${candles1m.length} candles`
+        );
+
+        await saveMarketHistory(
+          inst.id,
+          "1m",
+          candles1m
+        );
+
+        // --------------------
+        // 5 Minute candles
+        // --------------------
+
+        const candles5m = await fetchYahooCandles(
+          yahooSymbol,
+          "5m",
+          "5d"
+        );
+
+        console.log(
+          `📈 Yahoo ${yahooSymbol} 5m: ${candles5m.length} candles`
+        );
+
+        await saveMarketHistory(
+          inst.id,
+          "5m",
+          candles5m
+        );
+
+      } catch (err) {
+
+        console.error(`❌ ${inst.id}`, err);
+
+      }
+
+    })
+
+  );
+
+  console.log("✅ Market history saved");
+
 }

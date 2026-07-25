@@ -1,6 +1,22 @@
 import axios from 'axios';
 import { instruments } from '../data/instruments';
 import { irDifferentials } from './scoringEngine';
+import { prisma } from '../lib/prisma';
+async function updateInstrumentPrice(
+  id: string,
+  price: number
+): Promise<void> {
+  try {
+    await prisma.instrument.update({
+      where: { id },
+      data: {
+        price,
+      },
+    });
+  } catch (err) {
+    console.error(`Failed updating ${id} price`, err);
+  }
+}
 
 export interface YahooCandle {
   timestamp: Date;
@@ -56,12 +72,26 @@ export async function fetchYahooCandles(
 
     const result = res.data?.chart?.result?.[0];
 
-    if (!result) return [];
+    // if (!result) return [];
+    if (!result) {
+
+        console.log(`⚠️ Yahoo returned no data for ${symbol}`);
+
+        return [];
+
+    }
 
     const timestamps = result.timestamp ?? [];
     const quote = result.indicators?.quote?.[0];
 
-    if (!quote) return [];
+    // if (!quote) return [];
+    if (!quote) {
+
+        console.log(`⚠️ Yahoo quote missing for ${symbol}`);
+
+        return [];
+
+    }
 
     const opens = quote.open ?? [];
     const highs = quote.high ?? [];
@@ -90,6 +120,9 @@ export async function fetchYahooCandles(
         volume: volumes[i] ?? 0,
       });
     }
+    console.log(
+        `📈 Yahoo ${symbol} ${interval}: ${candles.length} candles`
+    );
 
     return candles;
   } catch (err) {
@@ -104,7 +137,9 @@ export async function fetchForexPrices(): Promise<void> {
       'https://api.frankfurter.app/latest?from=USD&to=EUR,GBP,JPY,AUD,NZD,CAD',
       { timeout: 5000 }
     );
+
     const r = res.data.rates;
+
     const map: Record<string, number> = {
       EURUSD: 1 / r.EUR,
       GBPUSD: 1 / r.GBP,
@@ -115,12 +150,21 @@ export async function fetchForexPrices(): Promise<void> {
       EURJPY: r.JPY / r.EUR,
       GBPJPY: r.JPY / r.GBP,
     };
-    instruments.forEach(inst => {
-      if (map[inst.id] !== undefined) {
-        inst.price = parseFloat(map[inst.id].toFixed(5));
-      }
-    });
+
+    await Promise.all(
+      instruments.map(async inst => {
+        if (map[inst.id] !== undefined) {
+          const p = parseFloat(map[inst.id].toFixed(5));
+
+          inst.price = p;
+
+          await updateInstrumentPrice(inst.id, p);
+        }
+      })
+    );
+
     console.log(`[${new Date().toISOString()}] ✅ Forex prices updated`);
+
   } catch (err) {
     logFetchError('Forex', err);
   }
@@ -128,7 +172,6 @@ export async function fetchForexPrices(): Promise<void> {
 
 export async function fetchMetalPrices(): Promise<void> {
   try {
-    // Use gold-api.com — completely free, no key needed
     const [goldRes, silverRes] = await Promise.all([
       axios.get('https://api.gold-api.com/price/XAU', { timeout: 8000 }),
       axios.get('https://api.gold-api.com/price/XAG', { timeout: 8000 }),
@@ -140,10 +183,26 @@ export async function fetchMetalPrices(): Promise<void> {
     const gold = instruments.find(i => i.id === 'XAUUSD');
     const silver = instruments.find(i => i.id === 'XAGUSD');
 
-    if (gold && goldPrice > 0) gold.price = parseFloat(goldPrice.toFixed(2));
-    if (silver && silverPrice > 0) silver.price = parseFloat(silverPrice.toFixed(2));
+    if (gold && goldPrice > 0) {
+      const p = parseFloat(goldPrice.toFixed(2));
 
-    console.log(`[${new Date().toISOString()}] ✅ Metal prices updated — Gold: $${goldPrice} Silver: $${silverPrice}`);
+      gold.price = p;
+
+      await updateInstrumentPrice('XAUUSD', p);
+    }
+
+    if (silver && silverPrice > 0) {
+      const p = parseFloat(silverPrice.toFixed(2));
+
+      silver.price = p;
+
+      await updateInstrumentPrice('XAGUSD', p);
+    }
+
+    console.log(
+      `[${new Date().toISOString()}] ✅ Metal prices updated`
+    );
+
   } catch (err) {
     logFetchError('Metal', err);
   }
@@ -153,7 +212,11 @@ export async function fetchCryptoPrices(): Promise<void> {
   const price = await fetchYahooPrice('BTC-USD');
   const btc = instruments.find(i => i.id === 'BTCUSD');
   if (btc && price) {
-    btc.price = parseFloat(price.toFixed(2));
+    const p = parseFloat(price.toFixed(2));
+
+    btc.price = p;
+
+    await updateInstrumentPrice('BTCUSD', p);
     console.log(`[${new Date().toISOString()}] ✅ Crypto prices updated — BTC: $${btc.price}`);
   }
 }
@@ -163,7 +226,9 @@ export async function fetchOilPrice(): Promise<void> {
   const price = await fetchYahooPrice('CL=F');
   const oil = instruments.find(i => i.id === 'USOIL');
   if (oil && price) {
-    oil.price = parseFloat(price.toFixed(2));
+    const p = parseFloat(price.toFixed(2));
+    oil.price = p;
+    await updateInstrumentPrice('USOIL', p);
     console.log(`[${new Date().toISOString()}] ✅ Oil (WTI) price updated: $${oil.price}`);
   }
 }
@@ -172,7 +237,9 @@ export async function fetchBrentPrice(): Promise<void> {
   const price = await fetchYahooPrice('BZ=F');
   const brent = instruments.find(i => i.id === 'UKOIL');
   if (brent && price) {
-    brent.price = parseFloat(price.toFixed(2));
+    const p = parseFloat(price.toFixed(2));
+    brent.price = p;   
+    await updateInstrumentPrice('UKOIL', p);
     console.log(`[${new Date().toISOString()}] ✅ Brent price updated: $${brent.price}`);
   }
 }
@@ -181,7 +248,11 @@ export async function fetchNASDAQPrice(): Promise<void> {
   const price = await fetchYahooPrice('NQ=F');
   const nas = instruments.find(i => i.id === 'NAS100');
   if (nas && price) {
-    nas.price = parseFloat(price.toFixed(2));
+    const p = parseFloat(price.toFixed(2));
+
+    nas.price = p;
+
+    await updateInstrumentPrice('NAS100', p);
     console.log(`[${new Date().toISOString()}] ✅ NASDAQ price updated: ${nas.price}`);
   }
 }
@@ -195,10 +266,25 @@ export async function fetchIndicesPrices(): Promise<void> {
   const spx = instruments.find(i => i.id === 'SPX500');
   const nas = instruments.find(i => i.id === 'NAS100');
 
-  if (spx && spxPrice) spx.price = parseFloat(spxPrice.toFixed(2));
-  if (nas && nasPrice) nas.price = parseFloat(nasPrice.toFixed(2));
+  if (spx && spxPrice) {
+    const p = parseFloat(spxPrice.toFixed(2));
 
-  console.log(`[${new Date().toISOString()}] ✅ Indices updated — SPX: ${spxPrice} NAS: ${nasPrice}`);
+    spx.price = p;
+
+    await updateInstrumentPrice('SPX500', p);
+  }
+
+  if (nas && nasPrice) {
+    const p = parseFloat(nasPrice.toFixed(2));
+
+    nas.price = p;
+
+    await updateInstrumentPrice('NAS100', p);
+  }
+
+  console.log(
+    `[${new Date().toISOString()}] ✅ Indices updated`
+  );
 }
 
 export async function fetchRetailSentiment(): Promise<void> {
@@ -285,7 +371,6 @@ export async function fetchAllPrices(): Promise<void> {
     fetchCryptoPrices(),
     fetchOilPrice(),
     fetchBrentPrice(),
-    fetchNASDAQPrice(),
     fetchIndicesPrices(),
   ]);
 }

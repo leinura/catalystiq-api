@@ -144,3 +144,15 @@ model TechnicalIndicator {
 
   @@map("technical_indicators")
 }
+model TradeLevel {
+  id           Int      @id @default(autoincrement())
+  instrument   String
+  action       String
+  entry        Float
+  stopLoss     Float
+  target       Float
+  confidence   Float
+  createdAt    DateTime @default(now())
+
+  @@map("trade_levels")
+}

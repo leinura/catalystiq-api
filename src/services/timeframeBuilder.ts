@@ -1,4 +1,5 @@
-import prisma from "../lib/prisma";
+import { prisma } from '../lib/prisma';
+
 
 export async function buildTimeframe(
     instrument: string,
@@ -7,112 +8,166 @@ export async function buildTimeframe(
     minutes: number
 ) {
 
-    const candles = await prisma.priceHistory.findMany({
 
-        where: {
+    const candles =
+        await prisma.priceHistory.findMany({
 
-            instrument,
+            where: {
 
-            timeframe: sourceTimeframe
+                instrument,
 
-        },
+                timeframe: sourceTimeframe
 
-        orderBy: {
+            },
 
-            timestamp: "desc"
+            orderBy: {
 
-        },
+                timestamp: "asc"
 
-        take: minutes
+            },
 
-    });
+            take: minutes * 300
+
+        });
+
+
 
     if (candles.length < minutes) {
+
+        console.log(
+            `⚠️ ${instrument} ${targetTimeframe}: insufficient candles (${candles.length})`
+        );
 
         return;
 
     }
 
-    const ordered = [...candles].reverse();
 
-    const open = ordered[0].open;
 
-    const close = ordered[ordered.length - 1].close;
+    const grouped = [];
 
-    const high = Math.max(...ordered.map(c => c.high));
 
-    const low = Math.min(...ordered.map(c => c.low));
 
-    const volume = ordered.reduce(
+    for (
+        let i = 0;
+        i + minutes <= candles.length;
+        i += minutes
+    ) {
 
-        (sum, c) => sum + (c.volume ?? 0),
 
-        0
+        grouped.push(
+            candles.slice(
+                i,
+                i + minutes
+            )
+        );
 
-    );
+    }
 
-    const timestamp = ordered[ordered.length - 1].timestamp;
 
-    await prisma.priceHistory.upsert({
 
-        where: {
+    for (const group of grouped) {
 
-            instrument_timeframe_timestamp: {
+
+        const open =
+            group[0].open;
+
+
+        const close =
+            group[group.length - 1].close;
+
+
+        const high =
+            Math.max(
+                ...group.map(c => c.high)
+            );
+
+
+        const low =
+            Math.min(
+                ...group.map(c => c.low)
+            );
+
+
+        const volume =
+            group.reduce(
+                (sum,c)=>
+                    sum + (c.volume ?? 0),
+                0
+            );
+
+
+        const timestamp =
+            group[group.length - 1].timestamp;
+
+
+
+        await prisma.priceHistory.upsert({
+
+            where: {
+
+                instrument_timeframe_timestamp: {
+
+                    instrument,
+
+                    timeframe: targetTimeframe,
+
+                    timestamp
+
+                }
+
+            },
+
+
+            update: {
+
+                open,
+
+                high,
+
+                low,
+
+                close,
+
+                volume,
+
+                source:"CatalystIQ"
+
+            },
+
+
+            create: {
 
                 instrument,
 
-                timeframe: targetTimeframe,
+                timeframe:targetTimeframe,
 
-                timestamp
+                timestamp,
+
+                open,
+
+                high,
+
+                low,
+
+                close,
+
+                volume,
+
+                source:"CatalystIQ"
 
             }
 
-        },
+        });
 
-        update: {
 
-            open,
+    }
 
-            high,
 
-            low,
-
-            close,
-
-            volume,
-
-            source: "CatalystIQ"
-
-        },
-
-        create: {
-
-            instrument,
-
-            timeframe: targetTimeframe,
-
-            timestamp,
-
-            open,
-
-            high,
-
-            low,
-
-            close,
-
-            volume,
-
-            source: "CatalystIQ"
-
-        }
-
-    });
 
     console.log(
-
-        `✅ ${instrument} ${targetTimeframe} candle built`
-
+        `✅ ${instrument} ${targetTimeframe} rebuilt`
     );
+
 
 }
